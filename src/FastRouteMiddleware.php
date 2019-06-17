@@ -1,5 +1,5 @@
 <?php
-declare(strict_types = 1);
+declare(strict_types=1);
 
 namespace Affinity4\Middleware\FastRoute;
 
@@ -66,23 +66,32 @@ class FastRouteMiddleware implements MiddlewareInterface
     {
         $route = $this->router->dispatch($request->getMethod(), rawurldecode($request->getUri()->getPath()));
 
-        if ($route[0] === Dispatcher::NOT_FOUND) {
-            return $this->HttpFactory->createResponse(404);
-        }
-
-        if ($route[0] === Dispatcher::METHOD_NOT_ALLOWED) {
-            return $this->HttpFactory->createResponse(405)->withHeader('Allow', implode(', ', $route[1]));
-        }
-
-        foreach ($route[2] as $name => $value) {
-            $request = $request->withAttribute($name, $value);
-        }
-
-        $request = $this->setHandler($request, $route[1]);
-
-        $Response = $handler->handle($request);
+        switch ($route[0]) {
+            case Dispatcher::NOT_FOUND:
+                $Response = $handler->handle($request);
         
-        return $Response->withBody($this->HttpFactory->createStream($Response->getBody() . $route[1]($request)->getBody()));
+                return $Response->withStatus(404);
+
+            break;
+            case Dispatcher::METHOD_NOT_ALLOWED:
+                $allowedMethods = $route[1];
+
+                $Response = $handler->handle($request);
+        
+                return $Response->withStatus(405)->withHeader('Allow', implode(', ', $route[1]));
+            break;
+            case Dispatcher::FOUND:
+                foreach ($route[2] as $name => $value) {
+                    $request = $request->withAttribute($name, $value);
+                }
+
+                $request = $this->setHandler($request, $route[1]);
+
+                $Response = $handler->handle($request);
+        
+                return $Response->withBody($this->HttpFactory->createStream($Response->getBody() . $route[1]($request)->getBody()));
+            break;
+        }
     }
 
     /**
